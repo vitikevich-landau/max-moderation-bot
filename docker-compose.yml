@@ -1,0 +1,46 @@
+services:
+  bot:
+    container_name: maxbot-bot
+    image: ghcr.io/vitikevich-landau/max-moderation-bot:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:9090:9090"
+    env_file:
+      - path: ./default.env
+        required: true
+      - path: ./prod.env
+        required: false
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - maxbot
+
+  db:
+    image: postgres:18-alpine
+    container_name: maxbot-db
+    restart: unless-stopped
+    env_file:
+      - path: ./default.env
+        required: true
+      - path: ./prod.env
+        required: false
+    volumes:
+      - pgdata:/var/lib/postgresql
+    networks:
+      - maxbot
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  maxbot:
+    name: maxbot
+    driver: bridge
+
+volumes:
+  pgdata:
+    name: maxbot-pgdata
