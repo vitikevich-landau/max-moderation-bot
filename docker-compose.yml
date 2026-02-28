@@ -7,9 +7,9 @@ services:
       - "127.0.0.1:8080:8080"
     env_file:
       - path: ./default.env
-        required: false
-      - path: ./prod.env
         required: true
+      - path: ./prod.env
+        required: false
     depends_on:
       db:
         condition: service_healthy
@@ -30,9 +30,9 @@ services:
     restart: unless-stopped
     env_file:
       - path: ./default.env
-        required: false
-      - path: ./prod.env
         required: true
+      - path: ./prod.env
+        required: false
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
