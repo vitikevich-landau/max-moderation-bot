@@ -89,8 +89,19 @@ if [ -z "$TOKEN" ]; then
 fi
 
 # ── Создание prod.env ─────────────────────────────────────
-echo "BOT_TOKEN=${TOKEN}" > "$ENV_FILE"
-ok "Файл $ENV_FILE создан."
+if [ ! -f "$ENV_FILE" ]; then
+    if [ -f "default.env" ]; then
+        cp default.env "$ENV_FILE"
+        info "Скопирован default.env как основа."
+    fi
+fi
+# Записать/перезаписать BOT_TOKEN в prod.env
+if grep -q '^BOT_TOKEN=' "$ENV_FILE" 2>/dev/null; then
+    sed -i "s|^BOT_TOKEN=.*|BOT_TOKEN=${TOKEN}|" "$ENV_FILE"
+else
+    echo "BOT_TOKEN=${TOKEN}" >> "$ENV_FILE"
+fi
+ok "Файл $ENV_FILE обновлён с BOT_TOKEN."
 
 # ── Запуск ────────────────────────────────────────────────
 echo ""
@@ -105,13 +116,32 @@ if ! $SUDO docker compose up -d --pull always; then
 fi
 
 # ── Ожидание ──────────────────────────────────────────────
-WAIT=10
-info "Ожидание запуска (${WAIT} сек)..."
-sleep "$WAIT"
+echo ""
+info "Ожидание запуска контейнеров (до 60 секунд)..."
 
 BOT_CONTAINER="maxbot-bot"
+MAX_WAIT=60
+ELAPSED=0
+while [ $ELAPSED -lt $MAX_WAIT ]; do
+    STATUS=$($SUDO docker inspect -f '{{.State.Health.Status}}' "$BOT_CONTAINER" 2>/dev/null || echo "missing")
+    if [ "$STATUS" = "healthy" ]; then
+        break
+    fi
+    if [ "$STATUS" = "unhealthy" ]; then
+        error "Контейнер бота перешёл в состояние unhealthy."
+        warn "Последние логи контейнера:"
+        echo ""
+        $SUDO docker logs --tail 30 "$BOT_CONTAINER" 2>&1
+        exit 1
+    fi
+    sleep 3
+    ELAPSED=$((ELAPSED + 3))
+done
+
 if [ "$($SUDO docker inspect -f '{{.State.Running}}' "$BOT_CONTAINER" 2>/dev/null)" != "true" ]; then
-    error "Контейнер бота не запустился."
+    error "Контейнер бота не запустился за ${MAX_WAIT} секунд."
+    warn "Последние логи контейнера:"
+    echo ""
     $SUDO docker logs --tail 30 "$BOT_CONTAINER" 2>&1
     exit 1
 fi

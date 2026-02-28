@@ -5,15 +5,22 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:8080"
-      - "127.0.0.1:9090:9090"
     env_file:
       - path: ./default.env
-        required: true
-      - path: ./prod.env
         required: false
+      - path: ./prod.env
+        required: true
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     networks:
       - maxbot
 
@@ -23,17 +30,32 @@ services:
     restart: unless-stopped
     env_file:
       - path: ./default.env
-        required: true
-      - path: ./prod.env
         required: false
+      - path: ./prod.env
+        required: true
     volumes:
-      - pgdata:/var/lib/postgresql
+      - pgdata:/var/lib/postgresql/data
     networks:
       - maxbot
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: maxbot-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru --appendonly no
+    volumes:
+      - redis-data:/data
+    networks:
+      - maxbot
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
       retries: 5
 
 networks:
@@ -44,3 +66,5 @@ networks:
 volumes:
   pgdata:
     name: maxbot-pgdata
+  redis-data:
+    name: maxbot-redis-data

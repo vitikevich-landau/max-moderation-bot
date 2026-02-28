@@ -35,6 +35,7 @@ echo [OK] Docker daemon запущен.
 :: Token
 set "TOKEN=%~1"
 set "ENV_FILE=prod.env"
+set "DEFAULT_ENV=default.env"
 
 if "%TOKEN%"=="" (
     if exist %ENV_FILE% (
@@ -52,9 +53,20 @@ if "%TOKEN%"=="" (
 )
 echo [OK] Токен получен.
 
-:: Create prod.env
-echo BOT_TOKEN=%TOKEN%> %ENV_FILE%
-echo [OK] Файл %ENV_FILE% создан.
+:: Create prod.env from default.env as base
+if not exist "%ENV_FILE%" (
+    if exist "%DEFAULT_ENV%" (
+        copy /y "%DEFAULT_ENV%" "%ENV_FILE%" >nul
+        echo [ИНФО] Скопирован %DEFAULT_ENV% как основа.
+    )
+)
+:: Replace BOT_TOKEN in prod.env
+if exist "%ENV_FILE%" (
+    powershell -Command "(Get-Content '%ENV_FILE%') -replace '^BOT_TOKEN=.*', 'BOT_TOKEN=!TOKEN!' | Set-Content '%ENV_FILE%'"
+) else (
+    echo BOT_TOKEN=!TOKEN!> "%ENV_FILE%"
+)
+echo [OK] Файл %ENV_FILE% обновлён с BOT_TOKEN.
 
 :: Start
 echo.
@@ -70,9 +82,40 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-:: Wait
-echo [ИНФО] Ожидание запуска (10 сек)...
-timeout /t 10 /nobreak >nul
+:: Wait with health check polling
+set "BOT_CONTAINER=maxbot-bot"
+set "MAX_WAIT=60"
+set "ELAPSED=0"
+
+echo.
+echo [ИНФО] Ожидание запуска контейнеров (до %MAX_WAIT% секунд)...
+
+:wait_loop
+if !ELAPSED! geq %MAX_WAIT% goto :wait_done
+for /f "tokens=*" %%i in ('docker inspect -f "{{.State.Health.Status}}" %BOT_CONTAINER% 2^>nul') do set "HEALTH=%%i"
+if "!HEALTH!"=="healthy" goto :wait_done
+if "!HEALTH!"=="unhealthy" (
+    echo [ОШИБКА] Контейнер бота перешёл в состояние unhealthy.
+    echo [!] Последние логи контейнера:
+    echo.
+    docker logs --tail 30 %BOT_CONTAINER%
+    pause
+    exit /b 1
+)
+timeout /t 3 /nobreak >nul
+set /a ELAPSED+=3
+goto :wait_loop
+
+:wait_done
+for /f "tokens=*" %%i in ('docker inspect -f "{{.State.Running}}" %BOT_CONTAINER% 2^>nul') do set "RUNNING=%%i"
+if not "!RUNNING!"=="true" (
+    echo [ОШИБКА] Контейнер бота не запустился за %MAX_WAIT% секунд.
+    echo [!] Последние логи контейнера:
+    echo.
+    docker logs --tail 30 %BOT_CONTAINER%
+    pause
+    exit /b 1
+)
 
 :: Logs
 echo.
@@ -80,7 +123,7 @@ echo ═════════════════════════
 echo [OK] Логи бота:
 echo ════════════════════════════════════════════════════
 echo.
-docker logs --tail 20 maxbot-bot
+docker logs --tail 20 %BOT_CONTAINER%
 
 echo.
 echo ════════════════════════════════════════════════════
@@ -90,7 +133,7 @@ echo.
 echo ════════════════════════════════════════════════════
 echo.
 echo   Команды:
-echo     Логи:       docker logs -f maxbot-bot
+echo     Логи:       docker logs -f %BOT_CONTAINER%
 echo     Статус:     docker compose ps
 echo     Остановка:  docker compose down
 echo     Обновление: docker compose pull ^& docker compose up -d

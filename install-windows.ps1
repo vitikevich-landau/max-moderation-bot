@@ -44,6 +44,7 @@ try {
 
 # Token
 $EnvFile = "prod.env"
+$DefaultEnv = "default.env"
 $Placeholder = "вставь_сюда_токен"
 
 if (-not $Token) {
@@ -65,9 +66,20 @@ if (-not $Token) {
     exit 1
 }
 
-# Create prod.env
-"BOT_TOKEN=$Token" | Out-File -FilePath $EnvFile -Encoding utf8NoBOM
-Write-Ok "Файл $EnvFile создан."
+# Create prod.env from default.env as base
+if (-not (Test-Path $EnvFile)) {
+    if (Test-Path $DefaultEnv) {
+        Copy-Item $DefaultEnv $EnvFile
+        Write-Info "Скопирован $DefaultEnv как основа."
+    }
+}
+# Replace BOT_TOKEN in prod.env
+if (Test-Path $EnvFile) {
+    (Get-Content $EnvFile) -replace '^BOT_TOKEN=.*', "BOT_TOKEN=$Token" | Set-Content $EnvFile
+} else {
+    "BOT_TOKEN=$Token" | Out-File -FilePath $EnvFile -Encoding utf8NoBOM
+}
+Write-Ok "Файл $EnvFile обновлён с BOT_TOKEN."
 
 # Start
 Write-Host ""
@@ -82,15 +94,28 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Wait
-$Wait = 10
-Write-Info "Ожидание запуска ($Wait сек)..."
-Start-Sleep -Seconds $Wait
-
+# Wait with health check polling
 $BotContainer = "maxbot-bot"
+$MaxWait = 60
+$Elapsed = 0
+
+Write-Info "Ожидание запуска контейнеров (до $MaxWait секунд)..."
+
+while ($Elapsed -lt $MaxWait) {
+    $health = docker inspect -f '{{.State.Health.Status}}' $BotContainer 2>$null
+    if ($health -eq "healthy") { break }
+    if ($health -eq "unhealthy") {
+        Write-Err "Контейнер бота перешёл в состояние unhealthy."
+        docker logs --tail 30 $BotContainer
+        exit 1
+    }
+    Start-Sleep -Seconds 3
+    $Elapsed += 3
+}
+
 $running = docker inspect -f '{{.State.Running}}' $BotContainer 2>$null
 if ($running -ne "true") {
-    Write-Err "Контейнер бота не запустился."
+    Write-Err "Контейнер бота не запустился за $MaxWait секунд."
     docker logs --tail 30 $BotContainer
     exit 1
 }
