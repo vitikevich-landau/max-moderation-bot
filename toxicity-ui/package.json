@@ -1,0 +1,13 @@
+{
+  "name": "toxicity-ui",
+  "version": "1.0.0",
+  "description": "UI для тестирования rubert-tiny-toxicity",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "axios": "^1.7.7"
+  }
+}

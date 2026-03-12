@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Toxicity Checker — rubert-tiny</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container { max-width: 860px; margin: 0 auto; }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+    }
+
+    h1 { font-size: 1.5rem; font-weight: 700; }
+    h1 span { color: #818cf8; }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: #1e2130;
+      font-size: 0.82rem;
+      border: 1px solid #2d3148;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #6b7280; }
+    .dot.ok { background: #34d399; animation: pulse 2s infinite; }
+    .dot.err { background: #f87171; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+    }
+
+    .card {
+      background: #1a1d2e;
+      border: 1px solid #2d3148;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: #a5b4fc; }
+
+    textarea {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 12px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 90px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    textarea:focus { border-color: #818cf8; }
+
+    .btn-row { display: flex; gap: 10px; margin-top: 12px; }
+
+    button {
+      padding: 10px 22px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-primary:hover { background: #818cf8; }
+    .btn-primary:disabled { background: #374151; cursor: not-allowed; }
+    .btn-secondary { background: #1e2130; color: #94a3b8; border: 1px solid #2d3148; }
+    .btn-secondary:hover { background: #2d3148; }
+
+    .result-box {
+      margin-top: 20px;
+      padding: 16px;
+      background: #0f1117;
+      border-radius: 8px;
+      border: 1px solid #2d3148;
+      display: none;
+    }
+    .result-box.visible { display: block; }
+
+    .verdict {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 14px;
+      padding: 10px 16px;
+      border-radius: 8px;
+    }
+    .verdict.toxic { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+    .verdict.clean { background: rgba(52,211,153,0.1); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
+
+    .scores { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+
+    .score-item { background: #1a1d2e; border-radius: 8px; padding: 10px 14px; border: 1px solid #2d3148; }
+    .score-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .score-value { font-size: 1.15rem; font-weight: 700; }
+    .score-bar { margin-top: 6px; height: 4px; background: #2d3148; border-radius: 2px; overflow: hidden; }
+    .score-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+
+    /* Батч секция */
+    .batch-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+    .batch-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+    .batch-input {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 10px 12px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      outline: none;
+    }
+    .batch-input:focus { border-color: #818cf8; }
+    .btn-remove { background: transparent; color: #6b7280; border: 1px solid #2d3148; padding: 8px 12px; border-radius: 8px; font-size: 1rem; }
+    .btn-remove:hover { color: #f87171; border-color: #f87171; }
+
+    .batch-results { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .batch-result-item {
+      padding: 12px 16px;
+      background: #0f1117;
+      border-radius: 8px;
+      border-left: 3px solid #2d3148;
+    }
+    .batch-result-item.toxic { border-left-color: #f87171; }
+    .batch-result-item.clean { border-left-color: #34d399; }
+    .batch-text { font-size: 0.9rem; margin-bottom: 8px; color: #94a3b8; }
+    .batch-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag {
+      font-size: 0.73rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .tag.high { background: rgba(239,68,68,0.2); color: #f87171; }
+    .tag.mid { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .tag.low { background: rgba(52,211,153,0.1); color: #34d399; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid #6366f1;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-msg { color: #f87171; font-size: 0.88rem; margin-top: 10px; }
+
+    .samples { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .sample-btn {
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1px solid #2d3148;
+      background: #1e2130;
+      color: #94a3b8;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .sample-btn:hover { border-color: #818cf8; color: #a5b4fc; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Toxicity Checker <span>/ rubert-tiny</span></h1>
+    <div class="status-badge">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">Проверка...</span>
+    </div>
+  </header>
+
+  <!-- Одиночная проверка -->
+  <div class="card">
+    <h2>Проверить текст</h2>
+
+    <div class="samples">
+      <span style="font-size:0.8rem;color:#64748b;align-self:center;">Примеры:</span>
+      <button class="sample-btn" onclick="setSample('Привет, как дела? Всё хорошо?')">Нейтральный</button>
+      <button class="sample-btn" onclick="setSample('Ты идиот и дурак полный')">Оскорбление</button>
+      <button class="sample-btn" onclick="setSample('Отличная работа, молодец!')">Похвала</button>
+      <button class="sample-btn" onclick="setSample('Я тебя убью если не заплатишь')">Угроза</button>
+    </div>
+
+    <textarea id="singleText" placeholder="Введите текст для проверки..."></textarea>
+    <div class="btn-row">
+      <button class="btn-primary" id="checkBtn" onclick="checkSingle()">Проверить</button>
+      <button class="btn-secondary" onclick="clearSingle()">Очистить</button>
+    </div>
+
+    <div class="result-box" id="singleResult"></div>
+  </div>
+
+  <!-- Батч проверка -->
+  <div class="card">
+    <h2>Проверить несколько текстов</h2>
+    <div class="batch-list" id="batchList">
+      <div class="batch-row">
+        <input class="batch-input" type="text" placeholder="Текст 1...">
+        <button class="btn-remove" onclick="removeBatchRow(this)">✕</button>
+      </div>
+      <div class="batch-row">
+        <input class="batch-input" type="text" placeholder="Текст 2...">
+        <button class="btn-remove" onclick="removeBatchRow(this)">✕</button>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn-primary" id="batchBtn" onclick="checkBatch()">Проверить всё</button>
+      <button class="btn-secondary" onclick="addBatchRow()">+ Добавить строку</button>
+    </div>
+    <div class="batch-results" id="batchResults"></div>
+  </div>
+</div>
+
+<script>
+  // Проверка статуса API
+  async function checkStatus() {
+    try {
+      const r = await fetch('/api/health');
+      const data = await r.json();
+      const dot = document.getElementById('statusDot');
+      const txt = document.getElementById('statusText');
+      if (data.api?.status === 'ok') {
+        dot.className = 'dot ok';
+        txt.textContent = 'API работает';
+      } else {
+        dot.className = 'dot err';
+        txt.textContent = 'API недоступен';
+      }
+    } catch {
+      document.getElementById('statusDot').className = 'dot err';
+      document.getElementById('statusText').textContent = 'API недоступен';
+    }
+  }
+  checkStatus();
+  setInterval(checkStatus, 10000);
+
+  function setSample(text) {
+    document.getElementById('singleText').value = text;
+  }
+
+  function clearSingle() {
+    document.getElementById('singleText').value = '';
+    document.getElementById('singleResult').className = 'result-box';
+  }
+
+  function getColor(score) {
+    if (score > 0.6) return '#f87171';
+    if (score > 0.3) return '#fbbf24';
+    return '#34d399';
+  }
+
+  function renderScores(result) {
+    const labels = {
+      non_toxic: 'Не токсично',
+      insult: 'Оскорбление',
+      obscenity: 'Мат/obscenity',
+      threat: 'Угроза',
+      dangerous: 'Опасно',
+      toxicity_score: 'Токсичность'
+    };
+    const isToxic = result.is_toxic;
+    const verdict = isToxic
+      ? `<div class="verdict toxic">🚫 Токсичный текст (score: ${result.toxicity_score})</div>`
+      : `<div class="verdict clean">✅ Чистый текст (score: ${result.toxicity_score})</div>`;
+
+    const scoreItems = Object.entries(labels).map(([key, label]) => {
+      const val = result[key];
+      if (typeof val !== 'number') return '';
+      const color = key === 'non_toxic' ? getColor(1 - val) : getColor(val);
+      const barWidth = Math.round(val * 100);
+      return `
+        <div class="score-item">
+          <div class="score-label">${label}</div>
+          <div class="score-value" style="color:${color}">${(val * 100).toFixed(1)}%</div>
+          <div class="score-bar"><div class="score-fill" style="width:${barWidth}%;background:${color}"></div></div>
+        </div>`;
+    }).join('');
+
+    return verdict + `<div class="scores">${scoreItems}</div>`;
+  }
+
+  async function checkSingle() {
+    const text = document.getElementById('singleText').value.trim();
+    if (!text) return;
+    const btn = document.getElementById('checkBtn');
+    const box = document.getElementById('singleResult');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Проверяю...';
+    box.className = 'result-box';
+    try {
+      const r = await fetch('/api/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      const data = await r.json();
+      if (data.error) throw new Error(data.error);
+      box.innerHTML = renderScores(data.result);
+      box.className = 'result-box visible';
+    } catch (e) {
+      box.innerHTML = `<div class="error-msg">Ошибка: ${e.message}</div>`;
+      box.className = 'result-box visible';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Проверить';
+    }
+  }
+
+  document.getElementById('singleText').addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 'Enter') checkSingle();
+  });
+
+  // Батч
+  function addBatchRow() {
+    const list = document.getElementById('batchList');
+    const n = list.children.length + 1;
+    const div = document.createElement('div');
+    div.className = 'batch-row';
+    div.innerHTML = `
+      <input class="batch-input" type="text" placeholder="Текст ${n}...">
+      <button class="btn-remove" onclick="removeBatchRow(this)">✕</button>`;
+    list.appendChild(div);
+  }
+
+  function removeBatchRow(btn) {
+    const list = document.getElementById('batchList');
+    if (list.children.length > 1) btn.parentElement.remove();
+  }
+
+  async function checkBatch() {
+    const inputs = document.querySelectorAll('#batchList .batch-input');
+    const texts = Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
+    if (!texts.length) return;
+
+    const btn = document.getElementById('batchBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Проверяю...';
+    document.getElementById('batchResults').innerHTML = '';
+
+    try {
+      const r = await fetch('/api/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texts })
+      });
+      const data = await r.json();
+      if (data.error) throw new Error(data.error);
+
+      const container = document.getElementById('batchResults');
+      data.results.forEach(({ text, result }) => {
+        const tags = [];
+        if (result.insult > 0.3) tags.push(['Оскорбление', result.insult]);
+        if (result.obscenity > 0.3) tags.push(['Мат', result.obscenity]);
+        if (result.threat > 0.3) tags.push(['Угроза', result.threat]);
+        if (result.dangerous > 0.3) tags.push(['Опасно', result.dangerous]);
+        if (!result.is_toxic) tags.push(['Чисто', 1 - result.toxicity_score]);
+
+        const tagHtml = tags.map(([label, score]) => {
+          const cls = score > 0.6 ? 'high' : score > 0.3 ? 'mid' : 'low';
+          return `<span class="tag ${cls}">${label} ${(score * 100).toFixed(0)}%</span>`;
+        }).join('');
+
+        const div = document.createElement('div');
+        div.className = `batch-result-item ${result.is_toxic ? 'toxic' : 'clean'}`;
+        div.innerHTML = `
+          <div class="batch-text">"${text}"</div>
+          <div class="batch-tags">${tagHtml}</div>`;
+        container.appendChild(div);
+      });
+    } catch (e) {
+      document.getElementById('batchResults').innerHTML =
+        `<div class="error-msg">Ошибка: ${e.message}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Проверить всё';
+    }
+  }
+</script>
+</body>
+</html>

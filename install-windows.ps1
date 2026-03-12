@@ -106,6 +106,36 @@ if (Test-Path $MonitoringFile) {
     }
 }
 
+# Toxicity filter
+Write-Host ""
+Write-Host "Включить ML-фильтр токсичности (rubert-tiny-toxicity)?" -ForegroundColor White
+Write-Host "  Анализирует смысл текста на токсичность, оскорбления, угрозы."
+Write-Host "  Требует ~512MB RAM, первая сборка может занять от 5 минут."
+$ToxAnswer = Read-Host "  [y/N]"
+
+$ComposeProfiles = @()
+if ($ToxAnswer -match "^[Yy]$") {
+    $ComposeProfiles = @("--profile", "toxicity")
+    if (Test-Path $EnvFile) {
+        $content = Get-Content $EnvFile
+        if ($content -match 'TOXICITY_ENABLED') {
+            $content = $content -replace '^TOXICITY_ENABLED=.*', 'TOXICITY_ENABLED=true'
+        } else {
+            $content += "TOXICITY_ENABLED=true"
+        }
+        if (-not ($content -match 'TOXICITY_API_URL')) {
+            $content += "TOXICITY_API_URL=http://toxicity-api:8000"
+        }
+        $content | Set-Content $EnvFile
+    }
+    Write-Ok "ML-фильтр токсичности включён."
+} else {
+    if (Test-Path $EnvFile) {
+        (Get-Content $EnvFile) -replace '^TOXICITY_ENABLED=.*', 'TOXICITY_ENABLED=false' | Set-Content $EnvFile
+    }
+    Write-Info "ML-фильтр токсичности отключён (только совпадение слов)."
+}
+
 # Start
 Write-Host ""
 Write-Host "════════════════════════════════════════════════════"
@@ -113,7 +143,7 @@ Write-Info "Скачиваю образы и запускаю контейнер
 Write-Host "════════════════════════════════════════════════════"
 Write-Host ""
 
-Invoke-Expression "$ComposeCmd up -d --pull always"
+Invoke-Expression "$ComposeCmd @ComposeProfiles up -d --pull always"
 if ($LASTEXITCODE -ne 0) {
     Write-Err "Запуск не удался."
     exit 1
