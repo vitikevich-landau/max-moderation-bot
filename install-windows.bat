@@ -75,26 +75,30 @@ set "COMPOSE_CMD=docker compose"
 if exist "%MONITORING_FILE%" (
     set "COMPOSE_CMD=docker compose -f docker-compose.yml -f docker-compose.monitoring.yml"
     echo [OK] Обнаружена предыдущая установка с мониторингом.
-) else (
-    echo.
-    echo   Установить мониторинг ^(Prometheus + Grafana^)?
-    echo   Это добавит веб-панель с графиками и метриками бота.
-    echo   Требует ~512 МБ дополнительной оперативной памяти.
-    echo.
-    set /p "MON_ANSWER=  Установить мониторинг? [y/N]: "
-    echo.
-    if /i "!MON_ANSWER!"=="y" goto :mon_yes
-    if /i "!MON_ANSWER!"=="yes" goto :mon_yes
-    if /i "!MON_ANSWER!"=="д" goto :mon_yes
-    if /i "!MON_ANSWER!"=="да" goto :mon_yes
-    echo [ИНФО] Мониторинг пропущен. Можно добавить позже, запустив скрипт заново.
     goto :mon_done
-    :mon_yes
-    set "COMPOSE_CMD=docker compose -f docker-compose.yml -f docker-compose.monitoring.yml"
-    echo.> "%MONITORING_FILE%"
-    echo [OK] Мониторинг будет установлен.
-    :mon_done
 )
+
+echo.
+echo   Установить мониторинг ^(Prometheus + Grafana^)?
+echo   Это добавит веб-панель с графиками и метриками бота.
+echo   Требует ~512 МБ дополнительной оперативной памяти.
+echo.
+set /p "MON_ANSWER=  Установить мониторинг? [y/N]: "
+echo.
+
+if /i "!MON_ANSWER!"=="y" goto :mon_yes
+if /i "!MON_ANSWER!"=="yes" goto :mon_yes
+if /i "!MON_ANSWER!"=="д" goto :mon_yes
+if /i "!MON_ANSWER!"=="да" goto :mon_yes
+echo [ИНФО] Мониторинг пропущен. Можно добавить позже, запустив скрипт заново.
+goto :mon_done
+
+:mon_yes
+set "COMPOSE_CMD=docker compose -f docker-compose.yml -f docker-compose.monitoring.yml"
+echo.> "%MONITORING_FILE%"
+echo [OK] Мониторинг будет установлен.
+
+:mon_done
 
 :: Start
 echo.
