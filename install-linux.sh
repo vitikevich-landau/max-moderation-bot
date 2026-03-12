@@ -129,6 +129,33 @@ else
     fi
 fi
 
+# ── Фильтр токсичности ───────────────────────────────────
+echo ""
+echo -e "${BOLD}Включить ML-фильтр токсичности (rubert-tiny-toxicity)?${NC}"
+echo "  Анализирует смысл текста на токсичность, оскорбления, угрозы."
+echo "  Требует ~512MB RAM, первая сборка может занять от 5 минут."
+echo -n "  [y/N]: "
+read -r TOXICITY_ANSWER
+
+COMPOSE_PROFILES=""
+if [[ "$TOXICITY_ANSWER" =~ ^[Yy]$ ]]; then
+    COMPOSE_PROFILES="--profile toxicity"
+    if grep -q '^TOXICITY_ENABLED=' "$ENV_FILE" 2>/dev/null; then
+        sed -i "s|^TOXICITY_ENABLED=.*|TOXICITY_ENABLED=true|" "$ENV_FILE"
+    else
+        echo "TOXICITY_ENABLED=true" >> "$ENV_FILE"
+    fi
+    if ! grep -q '^TOXICITY_API_URL=' "$ENV_FILE" 2>/dev/null; then
+        echo "TOXICITY_API_URL=http://toxicity-api:8000" >> "$ENV_FILE"
+    fi
+    ok "ML-фильтр токсичности включён."
+else
+    if grep -q '^TOXICITY_ENABLED=' "$ENV_FILE" 2>/dev/null; then
+        sed -i "s|^TOXICITY_ENABLED=.*|TOXICITY_ENABLED=false|" "$ENV_FILE"
+    fi
+    info "ML-фильтр токсичности отключён (только совпадение слов)."
+fi
+
 # ── Запуск ────────────────────────────────────────────────
 echo ""
 line
@@ -136,7 +163,7 @@ info "Скачиваю образы и запускаю контейнеры..."
 line
 echo ""
 
-if ! $SUDO $COMPOSE_CMD up -d --pull always; then
+if ! $SUDO $COMPOSE_CMD $COMPOSE_PROFILES up -d --pull always; then
     error "Запуск не удался. Проверьте вывод выше."
     exit 1
 fi

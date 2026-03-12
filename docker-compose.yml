@@ -60,6 +60,35 @@ services:
       timeout: 3s
       retries: 5
 
+  toxicity-api:
+    profiles: ["toxicity"]
+    build: ./toxicity-api
+    container_name: maxbot-toxicity-api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - maxbot
+
+  toxicity-ui:
+    profiles: ["toxicity"]
+    build: ./toxicity-ui
+    container_name: maxbot-toxicity-ui
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      - API_URL=http://toxicity-api:8000
+    depends_on:
+      toxicity-api:
+        condition: service_healthy
+    networks:
+      - maxbot
+
 networks:
   maxbot:
     name: maxbot

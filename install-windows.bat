@@ -100,6 +100,28 @@ echo [OK] Мониторинг будет установлен.
 
 :mon_done
 
+:: Toxicity filter
+echo.
+echo Включить ML-фильтр токсичности (rubert-tiny-toxicity)?
+echo   Анализирует смысл текста на токсичность, оскорбления, угрозы.
+echo   Требует ~512MB RAM, первая сборка может занять от 5 минут.
+set /p "TOXICITY_ANSWER=  [y/N]: "
+set "COMPOSE_PROFILES="
+if /i "!TOXICITY_ANSWER!"=="y" (
+    set "COMPOSE_PROFILES=--profile toxicity"
+    if exist "%ENV_FILE%" (
+        powershell -Command "(Get-Content '%ENV_FILE%') -replace '^TOXICITY_ENABLED=.*', 'TOXICITY_ENABLED=true' | Set-Content '%ENV_FILE%'"
+        findstr /c:"TOXICITY_ENABLED" "%ENV_FILE%" >nul 2>&1 || echo TOXICITY_ENABLED=true>> "%ENV_FILE%"
+        findstr /c:"TOXICITY_API_URL" "%ENV_FILE%" >nul 2>&1 || echo TOXICITY_API_URL=http://toxicity-api:8000>> "%ENV_FILE%"
+    )
+    echo [OK] ML-фильтр токсичности включён.
+) else (
+    if exist "%ENV_FILE%" (
+        powershell -Command "(Get-Content '%ENV_FILE%') -replace '^TOXICITY_ENABLED=.*', 'TOXICITY_ENABLED=false' | Set-Content '%ENV_FILE%'"
+    )
+    echo [ИНФО] ML-фильтр токсичности отключён (только совпадение слов).
+)
+
 :: Start
 echo.
 echo ════════════════════════════════════════════════════
@@ -107,7 +129,7 @@ echo [ИНФО] Скачиваю образы и запускаю контейн
 echo ════════════════════════════════════════════════════
 echo.
 
-!COMPOSE_CMD! up -d --pull always
+!COMPOSE_CMD! !COMPOSE_PROFILES! up -d --pull always
 if %errorlevel% neq 0 (
     echo [ОШИБКА] Запуск не удался.
     pause
