@@ -68,14 +68,42 @@ if exist "%ENV_FILE%" (
 )
 echo [OK] Файл %ENV_FILE% обновлён с BOT_TOKEN.
 
+:: Monitoring choice
+set "MONITORING_FILE=.monitoring"
+set "COMPOSE_CMD=docker compose"
+
+if exist "%MONITORING_FILE%" (
+    set "COMPOSE_CMD=docker compose -f docker-compose.yml -f docker-compose.monitoring.yml"
+    echo [OK] Обнаружена предыдущая установка с мониторингом.
+) else (
+    echo.
+    echo   Установить мониторинг ^(Prometheus + Grafana^)?
+    echo   Это добавит веб-панель с графиками и метриками бота.
+    echo   Требует ~512 МБ дополнительной оперативной памяти.
+    echo.
+    set /p "MON_ANSWER=  Установить мониторинг? [y/N]: "
+    echo.
+    if /i "!MON_ANSWER!"=="y" goto :mon_yes
+    if /i "!MON_ANSWER!"=="yes" goto :mon_yes
+    if /i "!MON_ANSWER!"=="д" goto :mon_yes
+    if /i "!MON_ANSWER!"=="да" goto :mon_yes
+    echo [ИНФО] Мониторинг пропущен. Можно добавить позже, запустив скрипт заново.
+    goto :mon_done
+    :mon_yes
+    set "COMPOSE_CMD=docker compose -f docker-compose.yml -f docker-compose.monitoring.yml"
+    echo.> "%MONITORING_FILE%"
+    echo [OK] Мониторинг будет установлен.
+    :mon_done
+)
+
 :: Start
 echo.
 echo ════════════════════════════════════════════════════
-echo [ИНФО] Скачиваю образ и запускаю контейнеры...
+echo [ИНФО] Скачиваю образы и запускаю контейнеры...
 echo ════════════════════════════════════════════════════
 echo.
 
-docker compose up -d --pull always
+!COMPOSE_CMD! up -d --pull always
 if %errorlevel% neq 0 (
     echo [ОШИБКА] Запуск не удался.
     pause
@@ -134,8 +162,14 @@ echo ═════════════════════════
 echo.
 echo   Команды:
 echo     Логи:       docker logs -f %BOT_CONTAINER%
-echo     Статус:     docker compose ps
-echo     Остановка:  docker compose down
-echo     Обновление: docker compose pull ^& docker compose up -d
+echo     Статус:     !COMPOSE_CMD! ps
+echo     Остановка:  !COMPOSE_CMD! down
+echo     Обновление: !COMPOSE_CMD! pull ^& !COMPOSE_CMD! up -d
 echo.
+if exist "%MONITORING_FILE%" (
+    echo   Мониторинг:
+    echo     Grafana:    http://localhost:3000  ^(логин: admin / admin^)
+    echo     Prometheus: http://localhost:9091
+    echo.
+)
 pause

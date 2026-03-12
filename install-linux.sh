@@ -103,14 +103,40 @@ else
 fi
 ok "Файл $ENV_FILE обновлён с BOT_TOKEN."
 
+# ── Мониторинг (Prometheus + Grafana) ────────────────────
+MONITORING_FILE=".monitoring"
+COMPOSE_CMD="docker compose"
+
+if [ -f "$MONITORING_FILE" ]; then
+    # Уже установлен с мониторингом — сохраняем выбор
+    COMPOSE_CMD="docker compose -f docker-compose.yml -f docker-compose.monitoring.yml"
+    ok "Обнаружена предыдущая установка с мониторингом."
+else
+    echo ""
+    echo -e "${BOLD}  Установить мониторинг (Prometheus + Grafana)?${NC}"
+    echo "  Это добавит веб-панель с графиками и метриками бота."
+    echo "  Требует ~512 МБ дополнительной оперативной памяти."
+    echo ""
+    read -rp "  Установить мониторинг? [y/N]: " MONITORING_ANSWER
+    echo ""
+
+    if [[ "${MONITORING_ANSWER,,}" =~ ^(y|yes|д|да)$ ]]; then
+        COMPOSE_CMD="docker compose -f docker-compose.yml -f docker-compose.monitoring.yml"
+        touch "$MONITORING_FILE"
+        ok "Мониторинг будет установлен."
+    else
+        info "Мониторинг пропущен. Можно добавить позже, запустив скрипт заново."
+    fi
+fi
+
 # ── Запуск ────────────────────────────────────────────────
 echo ""
 line
-info "Скачиваю образ и запускаю контейнеры..."
+info "Скачиваю образы и запускаю контейнеры..."
 line
 echo ""
 
-if ! $SUDO docker compose up -d --pull always; then
+if ! $SUDO $COMPOSE_CMD up -d --pull always; then
     error "Запуск не удался. Проверьте вывод выше."
     exit 1
 fi
@@ -164,9 +190,15 @@ line
 echo ""
 echo -e "  ${BOLD}Команды:${NC}"
 echo "    Логи:       $SUDO docker logs -f $BOT_CONTAINER"
-echo "    Статус:     $SUDO docker compose ps"
-echo "    Остановка:  $SUDO docker compose down"
-echo "    Обновление: $SUDO docker compose pull && $SUDO docker compose up -d"
+echo "    Статус:     $SUDO $COMPOSE_CMD ps"
+echo "    Остановка:  $SUDO $COMPOSE_CMD down"
+echo "    Обновление: $SUDO $COMPOSE_CMD pull && $SUDO $COMPOSE_CMD up -d"
 echo ""
+if [ -f "$MONITORING_FILE" ]; then
+    echo -e "  ${BOLD}Мониторинг:${NC}"
+    echo "    Grafana:    http://localhost:3000  (логин: admin / ${GRAFANA_ADMIN_PASSWORD:-admin})"
+    echo "    Prometheus: http://localhost:9091"
+    echo ""
+fi
 line
 echo ""

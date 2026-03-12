@@ -81,14 +81,39 @@ if (Test-Path $EnvFile) {
 }
 Write-Ok "Файл $EnvFile обновлён с BOT_TOKEN."
 
+# Monitoring choice
+$MonitoringFile = ".monitoring"
+$ComposeCmd = "docker compose"
+
+if (Test-Path $MonitoringFile) {
+    $ComposeCmd = "docker compose -f docker-compose.yml -f docker-compose.monitoring.yml"
+    Write-Ok "Обнаружена предыдущая установка с мониторингом."
+} else {
+    Write-Host ""
+    Write-Host "  Установить мониторинг (Prometheus + Grafana)?" -ForegroundColor White
+    Write-Host "  Это добавит веб-панель с графиками и метриками бота."
+    Write-Host "  Требует ~512 МБ дополнительной оперативной памяти."
+    Write-Host ""
+    $answer = Read-Host "  Установить мониторинг? [y/N]"
+    Write-Host ""
+
+    if ($answer -match '^(y|yes|д|да)$') {
+        $ComposeCmd = "docker compose -f docker-compose.yml -f docker-compose.monitoring.yml"
+        New-Item -ItemType File -Path $MonitoringFile -Force | Out-Null
+        Write-Ok "Мониторинг будет установлен."
+    } else {
+        Write-Info "Мониторинг пропущен. Можно добавить позже, запустив скрипт заново."
+    }
+}
+
 # Start
 Write-Host ""
 Write-Host "════════════════════════════════════════════════════"
-Write-Info "Скачиваю образ и запускаю контейнеры..."
+Write-Info "Скачиваю образы и запускаю контейнеры..."
 Write-Host "════════════════════════════════════════════════════"
 Write-Host ""
 
-docker compose up -d --pull always
+Invoke-Expression "$ComposeCmd up -d --pull always"
 if ($LASTEXITCODE -ne 0) {
     Write-Err "Запуск не удался."
     exit 1
@@ -138,7 +163,14 @@ Write-Host "══════════════════════�
 Write-Host ""
 Write-Host "  Команды:"
 Write-Host "    Логи:       docker logs -f $BotContainer"
-Write-Host "    Статус:     docker compose ps"
-Write-Host "    Остановка:  docker compose down"
-Write-Host "    Обновление: docker compose pull; docker compose up -d"
+Write-Host "    Статус:     $ComposeCmd ps"
+Write-Host "    Остановка:  $ComposeCmd down"
+Write-Host "    Обновление: $ComposeCmd pull; $ComposeCmd up -d"
+Write-Host ""
+if (Test-Path $MonitoringFile) {
+    Write-Host "  Мониторинг:" -ForegroundColor White
+    Write-Host "    Grafana:    http://localhost:3000  (логин: admin / admin)"
+    Write-Host "    Prometheus: http://localhost:9091"
+    Write-Host ""
+}
 Write-Host ""

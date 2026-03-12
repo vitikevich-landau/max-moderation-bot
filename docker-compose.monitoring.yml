@@ -1,0 +1,68 @@
+services:
+  prometheus:
+    container_name: maxbot-prometheus
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+      - "--storage.tsdb.retention.size=2GB"
+    ports:
+      - "127.0.0.1:9091:9090"
+    networks:
+      - maxbot
+
+  grafana:
+    container_name: maxbot-grafana
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - maxbot
+
+  postgres-exporter:
+    container_name: maxbot-pg-exporter
+    image: prometheuscommunity/postgres-exporter:latest
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-maxbot}:${POSTGRES_PASSWORD:-maxbot_secret}@db:5432/${POSTGRES_DB:-maxbot_db}?sslmode=disable"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - maxbot
+
+  redis-exporter:
+    container_name: maxbot-redis-exporter
+    image: oliver006/redis_exporter:latest
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - maxbot
+
+volumes:
+  prometheus-data:
+    name: maxbot-prometheus-data
+  grafana-data:
+    name: maxbot-grafana-data
+
+networks:
+  maxbot:
+    external: true
