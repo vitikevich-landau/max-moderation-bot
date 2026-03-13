@@ -133,7 +133,7 @@ fi
 echo ""
 echo -e "${BOLD}Включить ML-фильтр токсичности (rubert-tiny-toxicity)?${NC}"
 echo "  Анализирует смысл текста на токсичность, оскорбления, угрозы."
-echo "  Требует ~512MB RAM, первая сборка может занять от 5 минут."
+echo "  Требует ~512MB RAM, первая сборка может занять до 20 минут."
 echo -n "  [y/N]: "
 read -r TOXICITY_ANSWER
 
@@ -162,6 +162,10 @@ line
 info "Скачиваю образы и запускаю контейнеры..."
 line
 echo ""
+
+# Ensure Docker network exists
+$SUDO docker network inspect maxbot &>/dev/null || $SUDO docker network create maxbot &>/dev/null
+ok "Docker-сеть maxbot готова."
 
 if ! $SUDO $COMPOSE_CMD $COMPOSE_PROFILES up -d --pull always; then
     error "Запуск не удался. Проверьте вывод выше."
@@ -223,8 +227,8 @@ echo "    Обновление: $SUDO $COMPOSE_CMD pull && $SUDO $COMPOSE_CMD up
 echo ""
 if [ -f "$MONITORING_FILE" ]; then
     echo -e "  ${BOLD}Мониторинг:${NC}"
-    echo "    Grafana:    http://localhost:3000  (логин: admin / ${GRAFANA_ADMIN_PASSWORD:-admin})"
-    echo "    Prometheus: http://localhost:9091"
+    echo "    Grafana:    http://localhost:4200  (логин: admin / ${GRAFANA_ADMIN_PASSWORD:-admin})"
+    echo "    Prometheus: http://localhost:4210"
     echo ""
 fi
 line

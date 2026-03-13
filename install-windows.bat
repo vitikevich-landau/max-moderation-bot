@@ -60,12 +60,16 @@ if not exist "%ENV_FILE%" (
         echo [ИНФО] Скопирован %DEFAULT_ENV% как основа.
     )
 )
+
 :: Replace BOT_TOKEN in prod.env
-if exist "%ENV_FILE%" (
-    powershell -Command "(Get-Content '%ENV_FILE%') -replace '^BOT_TOKEN=.*', 'BOT_TOKEN=!TOKEN!' | Set-Content '%ENV_FILE%'"
-) else (
-    echo BOT_TOKEN=!TOKEN!> "%ENV_FILE%"
-)
+if not exist "%ENV_FILE%" goto :write_token_new
+powershell -Command "(Get-Content '%ENV_FILE%') -replace '^BOT_TOKEN=.*', 'BOT_TOKEN=%TOKEN%' | Set-Content '%ENV_FILE%'"
+goto :token_written
+
+:write_token_new
+echo BOT_TOKEN=!TOKEN!> "%ENV_FILE%"
+
+:token_written
 echo [OK] Файл %ENV_FILE% обновлён с BOT_TOKEN.
 
 :: Monitoring choice
@@ -104,7 +108,7 @@ echo [OK] Мониторинг будет установлен.
 echo.
 echo Включить ML-фильтр токсичности (rubert-tiny-toxicity)?
 echo   Анализирует смысл текста на токсичность, оскорбления, угрозы.
-echo   Требует ~512MB RAM, первая сборка может занять от 5 минут.
+echo   Требует ~512MB RAM, первая сборка может занять до 20 минут.
 set /p "TOXICITY_ANSWER=  [y/N]: "
 set "COMPOSE_PROFILES="
 
@@ -114,22 +118,22 @@ if /i "!TOXICITY_ANSWER!"=="д" goto :tox_yes
 if /i "!TOXICITY_ANSWER!"=="да" goto :tox_yes
 
 :: Toxicity disabled
-if exist "%ENV_FILE%" (
-    powershell -Command "$c = Get-Content '%ENV_FILE%'; $c = $c -replace '^TOXICITY_ENABLED=.*', 'TOXICITY_ENABLED=false'; Set-Content '%ENV_FILE%' $c"
-)
+powershell -Command "if (Test-Path '%ENV_FILE%') { (Get-Content '%ENV_FILE%') -replace '^TOXICITY_ENABLED=.*', 'TOXICITY_ENABLED=false' | Set-Content '%ENV_FILE%' }"
 echo [ИНФО] ML-фильтр токсичности отключён (только совпадение слов).
 goto :tox_done
 
 :tox_yes
 set "COMPOSE_PROFILES=--profile toxicity"
-if exist "%ENV_FILE%" (
-    powershell -Command "$c = Get-Content '%ENV_FILE%'; $c = $c -replace '^TOXICITY_ENABLED=.*', 'TOXICITY_ENABLED=true'; Set-Content '%ENV_FILE%' $c"
-)
+powershell -Command "if (Test-Path '%ENV_FILE%') { (Get-Content '%ENV_FILE%') -replace '^TOXICITY_ENABLED=.*', 'TOXICITY_ENABLED=true' | Set-Content '%ENV_FILE%' }"
 findstr /c:"TOXICITY_ENABLED" "%ENV_FILE%" >nul 2>&1 || echo TOXICITY_ENABLED=true>> "%ENV_FILE%"
 findstr /c:"TOXICITY_API_URL" "%ENV_FILE%" >nul 2>&1 || echo TOXICITY_API_URL=http://toxicity-api:8000>> "%ENV_FILE%"
 echo [OK] ML-фильтр токсичности включён.
 
 :tox_done
+
+:: Ensure Docker network exists
+docker network inspect maxbot >nul 2>&1 || docker network create maxbot >nul 2>&1
+echo [OK] Docker-сеть maxbot готова.
 
 :: Start
 echo.
@@ -157,17 +161,18 @@ echo [ИНФО] Ожидание запуска контейнеров (до %MA
 if !ELAPSED! geq %MAX_WAIT% goto :wait_done
 for /f "tokens=*" %%i in ('docker inspect -f "{{.State.Health.Status}}" %BOT_CONTAINER% 2^>nul') do set "HEALTH=%%i"
 if "!HEALTH!"=="healthy" goto :wait_done
-if "!HEALTH!"=="unhealthy" (
-    echo [ОШИБКА] Контейнер бота перешёл в состояние unhealthy.
-    echo [!] Последние логи контейнера:
-    echo.
-    docker logs --tail 30 %BOT_CONTAINER%
-    pause
-    exit /b 1
-)
+if "!HEALTH!"=="unhealthy" goto :bot_unhealthy
 timeout /t 3 /nobreak >nul
 set /a ELAPSED+=3
 goto :wait_loop
+
+:bot_unhealthy
+echo [ОШИБКА] Контейнер бота перешёл в состояние unhealthy.
+echo [!] Последние логи контейнера:
+echo.
+docker logs --tail 30 %BOT_CONTAINER%
+pause
+exit /b 1
 
 :wait_done
 for /f "tokens=*" %%i in ('docker inspect -f "{{.State.Running}}" %BOT_CONTAINER% 2^>nul') do set "RUNNING=%%i"
@@ -191,7 +196,7 @@ docker logs --tail 20 %BOT_CONTAINER%
 echo.
 echo ════════════════════════════════════════════════════
 echo.
-echo   ✅ Бот успешно запущен!
+echo   Бот успешно запущен!
 echo.
 echo ════════════════════════════════════════════════════
 echo.
@@ -203,8 +208,10 @@ echo     Обновление: !COMPOSE_CMD! pull ^& !COMPOSE_CMD! up -d
 echo.
 if exist "%MONITORING_FILE%" (
     echo   Мониторинг:
-    echo     Grafana:    http://localhost:3000  ^(логин: admin / admin^)
-    echo     Prometheus: http://localhost:9091
+    echo     Grafana:    http://localhost:4200  ^(логин: admin / admin^)
+    echo     Prometheus: http://localhost:4210
     echo.
 )
+echo   Toxicity UI: http://localhost:4300
+echo.
 pause
