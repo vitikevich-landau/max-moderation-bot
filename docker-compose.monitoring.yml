@@ -65,4 +65,5 @@ volumes:
 
 networks:
   maxbot:
-    external: true
+    name: maxbot
+    driver: bridge
