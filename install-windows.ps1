@@ -83,10 +83,10 @@ Write-Ok "Файл $EnvFile обновлён с BOT_TOKEN."
 
 # Monitoring choice
 $MonitoringFile = ".monitoring"
-$ComposeCmd = "docker compose"
+$ComposeCmd = "docker compose --env-file prod.env"
 
 if (Test-Path $MonitoringFile) {
-    $ComposeCmd = "docker compose -f docker-compose.yml -f docker-compose.monitoring.yml"
+    $ComposeCmd = "docker compose --env-file prod.env -f docker-compose.yml -f docker-compose.monitoring.yml"
     Write-Ok "Обнаружена предыдущая установка с мониторингом."
 } else {
     Write-Host ""
@@ -98,39 +98,14 @@ if (Test-Path $MonitoringFile) {
     Write-Host ""
 
     if ($answer -match '^(y|yes|д|да)$') {
-        $ComposeCmd = "docker compose -f docker-compose.yml -f docker-compose.monitoring.yml"
+        $ComposeCmd = "docker compose --env-file prod.env -f docker-compose.yml -f docker-compose.monitoring.yml"
         New-Item -ItemType File -Path $MonitoringFile -Force | Out-Null
-
-        # Установка пароля Grafana (обязателен для мониторинга)
-        $GrafanaPass = ""
-        if (Test-Path $EnvFile) {
-            $gLine = Get-Content $EnvFile | Where-Object { $_ -match "^GRAFANA_ADMIN_PASSWORD=" } | Select-Object -First 1
-            if ($gLine) { $GrafanaPass = $gLine -replace "^GRAFANA_ADMIN_PASSWORD=", "" }
-        }
-        if (-not $GrafanaPass) {
-            Write-Host ""
-            Write-Host "  Задайте пароль для Grafana (веб-панель мониторинга):" -ForegroundColor White
-            Write-Host "  Нажмите Enter, чтобы использовать пароль по умолчанию: admin"
-            $GrafanaInput = Read-Host "  Пароль [admin]"
-            if (-not $GrafanaInput) { $GrafanaInput = "admin" }
-            $GrafanaPass = $GrafanaInput
-            if (Test-Path $EnvFile) {
-                $content = Get-Content $EnvFile
-                if ($content -match 'GRAFANA_ADMIN_PASSWORD') {
-                    $content = $content -replace '^GRAFANA_ADMIN_PASSWORD=.*', "GRAFANA_ADMIN_PASSWORD=$GrafanaPass"
-                } else {
-                    $content += "GRAFANA_ADMIN_PASSWORD=$GrafanaPass"
-                }
-                $content | Set-Content $EnvFile
-            }
-            Write-Ok "Пароль Grafana установлен."
-        }
-
         Write-Ok "Мониторинг будет установлен."
     } else {
         Write-Info "Мониторинг пропущен. Можно добавить позже, запустив скрипт заново."
     }
 }
+
 
 # Toxicity filter
 Write-Host ""

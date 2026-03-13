@@ -74,10 +74,10 @@ echo [OK] Файл %ENV_FILE% обновлён с BOT_TOKEN.
 
 :: Monitoring choice
 set "MONITORING_FILE=.monitoring"
-set "COMPOSE_CMD=docker compose"
+set "COMPOSE_CMD=docker compose --env-file prod.env"
 
 if exist "%MONITORING_FILE%" (
-    set "COMPOSE_CMD=docker compose -f docker-compose.yml -f docker-compose.monitoring.yml"
+    set "COMPOSE_CMD=docker compose --env-file prod.env -f docker-compose.yml -f docker-compose.monitoring.yml"
     echo [OK] Обнаружена предыдущая установка с мониторингом.
     goto :mon_done
 )
@@ -98,31 +98,14 @@ echo [ИНФО] Мониторинг пропущен. Можно добавит
 goto :mon_done
 
 :mon_yes
-set "COMPOSE_CMD=docker compose -f docker-compose.yml -f docker-compose.monitoring.yml"
+set "COMPOSE_CMD=docker compose --env-file prod.env -f docker-compose.yml -f docker-compose.monitoring.yml"
 echo.> "%MONITORING_FILE%"
-
-:: Установка пароля Grafana (обязателен для мониторинга)
-set "GRAFANA_PASS="
-if exist "%ENV_FILE%" (
-    for /f "tokens=1,* delims==" %%a in ('findstr /b "GRAFANA_ADMIN_PASSWORD=" "%ENV_FILE%" 2^>nul') do set "GRAFANA_PASS=%%b"
-)
-if "!GRAFANA_PASS!"=="" (
-    echo.
-    echo   Задайте пароль для Grafana (веб-панель мониторинга):
-    echo   Нажмите Enter, чтобы использовать пароль по умолчанию: admin
-    set /p "GRAFANA_INPUT=  Пароль [admin]: "
-    if "!GRAFANA_INPUT!"=="" set "GRAFANA_INPUT=admin"
-    findstr /c:"GRAFANA_ADMIN_PASSWORD" "%ENV_FILE%" >nul 2>&1 && (
-        powershell -Command "(Get-Content '%ENV_FILE%') -replace '^GRAFANA_ADMIN_PASSWORD=.*', 'GRAFANA_ADMIN_PASSWORD=!GRAFANA_INPUT!' | Set-Content '%ENV_FILE%'"
-    ) || (
-        echo GRAFANA_ADMIN_PASSWORD=!GRAFANA_INPUT!>> "%ENV_FILE%"
-    )
-    echo [OK] Пароль Grafana установлен.
-)
-
 echo [OK] Мониторинг будет установлен.
 
 :mon_done
+
+
+
 
 :: Toxicity filter
 echo.

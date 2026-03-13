@@ -105,7 +105,7 @@ ok "Файл $ENV_FILE обновлён с BOT_TOKEN."
 
 # ── Мониторинг (Prometheus + Grafana) ────────────────────
 MONITORING_FILE=".monitoring"
-COMPOSE_CMD="docker compose"
+COMPOSE_CMD="docker compose --env-file prod.env"
 
 if [ -f "$MONITORING_FILE" ]; then
     # Уже установлен с мониторингом — сохраняем выбор
@@ -123,31 +123,12 @@ else
     if [[ "${MONITORING_ANSWER,,}" =~ ^(y|yes|д|да)$ ]]; then
         COMPOSE_CMD="docker compose -f docker-compose.yml -f docker-compose.monitoring.yml"
         touch "$MONITORING_FILE"
-
-        # Установка пароля Grafana (обязателен для мониторинга)
-        GRAFANA_PASS=""
-        if grep -q '^GRAFANA_ADMIN_PASSWORD=' "$ENV_FILE" 2>/dev/null; then
-            GRAFANA_PASS=$(grep -E '^GRAFANA_ADMIN_PASSWORD=' "$ENV_FILE" | head -1 | cut -d'=' -f2-)
-        fi
-        if [ -z "$GRAFANA_PASS" ]; then
-            echo ""
-            echo -e "  ${BOLD}Задайте пароль для Grafana (веб-панель мониторинга):${NC}"
-            echo "  Нажмите Enter, чтобы использовать пароль по умолчанию: admin"
-            read -rp "  Пароль [admin]: " GRAFANA_INPUT
-            GRAFANA_PASS="${GRAFANA_INPUT:-admin}"
-            if grep -q '^GRAFANA_ADMIN_PASSWORD=' "$ENV_FILE" 2>/dev/null; then
-                sed -i "s|^GRAFANA_ADMIN_PASSWORD=.*|GRAFANA_ADMIN_PASSWORD=${GRAFANA_PASS}|" "$ENV_FILE"
-            else
-                echo "GRAFANA_ADMIN_PASSWORD=${GRAFANA_PASS}" >> "$ENV_FILE"
-            fi
-            ok "Пароль Grafana установлен."
-        fi
-
         ok "Мониторинг будет установлен."
     else
         info "Мониторинг пропущен. Можно добавить позже, запустив скрипт заново."
     fi
 fi
+
 
 # ── Фильтр токсичности ───────────────────────────────────
 echo ""
