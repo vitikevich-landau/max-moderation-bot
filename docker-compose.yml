@@ -84,8 +84,7 @@ services:
     environment:
       - API_URL=http://toxicity-api:8000
     depends_on:
-      toxicity-api:
-        condition: service_healthy
+      - toxicity-api
     networks:
       - maxbot
 
