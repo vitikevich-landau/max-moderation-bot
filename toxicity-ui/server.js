@@ -6,6 +6,15 @@ const app = express();
 const PORT = 3000;
 const API_URL = process.env.API_URL || 'http://toxicity-api:8000';
 
+// Security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -17,8 +26,7 @@ app.post('/api/check', async (req, res) => {
     const response = await axios.post(`${API_URL}/check`, { text });
     res.json(response.data);
   } catch (err) {
-    const msg = err.response?.data?.detail || err.message;
-    res.status(500).json({ error: `API недоступен: ${msg}` });
+    res.status(500).json({ error: 'API недоступен' });
   }
 });
 
@@ -30,8 +38,7 @@ app.post('/api/batch', async (req, res) => {
     const response = await axios.post(`${API_URL}/batch`, { texts });
     res.json(response.data);
   } catch (err) {
-    const msg = err.response?.data?.detail || err.message;
-    res.status(500).json({ error: `API недоступен: ${msg}` });
+    res.status(500).json({ error: 'API недоступен' });
   }
 });
 

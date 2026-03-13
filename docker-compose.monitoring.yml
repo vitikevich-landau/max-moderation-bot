@@ -1,7 +1,7 @@
 services:
   prometheus:
     container_name: maxbot-prometheus
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.2.1
     restart: unless-stopped
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -17,7 +17,7 @@ services:
 
   grafana:
     container_name: maxbot-grafana
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.5.2
     restart: unless-stopped
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
@@ -35,7 +35,7 @@ services:
 
   postgres-exporter:
     container_name: maxbot-pg-exporter
-    image: prometheuscommunity/postgres-exporter:latest
+    image: prometheuscommunity/postgres-exporter:v0.16.0
     restart: unless-stopped
     environment:
       DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:?POSTGRES_DB is required}?sslmode=disable"
@@ -47,7 +47,7 @@ services:
 
   redis-exporter:
     container_name: maxbot-redis-exporter
-    image: oliver006/redis_exporter:latest
+    image: oliver006/redis_exporter:v1.67.0
     restart: unless-stopped
     environment:
       REDIS_ADDR: redis://redis:6379
