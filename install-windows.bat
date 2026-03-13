@@ -212,6 +212,8 @@ if exist "%MONITORING_FILE%" (
     echo     Prometheus: http://localhost:4210
     echo.
 )
-echo   Toxicity UI: http://localhost:4300
-echo.
+if not "!COMPOSE_PROFILES!"=="" (
+    echo   Toxicity UI: http://localhost:4300
+    echo.
+)
 pause
