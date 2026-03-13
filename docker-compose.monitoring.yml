@@ -11,7 +11,7 @@ services:
       - "--storage.tsdb.retention.time=15d"
       - "--storage.tsdb.retention.size=2GB"
     ports:
-      - "127.0.0.1:9091:9090"
+      - "127.0.0.1:4210:9090"
     networks:
       - maxbot
 
@@ -27,7 +27,7 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:4200:3000"
     depends_on:
       - prometheus
     networks:
@@ -66,4 +66,3 @@ volumes:
 networks:
   maxbot:
     name: maxbot
-    driver: bridge
