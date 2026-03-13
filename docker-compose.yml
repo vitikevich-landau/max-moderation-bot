@@ -92,7 +92,7 @@ services:
 networks:
   maxbot:
     name: maxbot
-    driver: bridge
+    external: true
 
 volumes:
   pgdata:
